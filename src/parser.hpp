@@ -1,14 +1,16 @@
 #pragma once
 
+// C++ headers
 #include <variant>
 #include <string>
 #include <list>
 
-#include "lex.hpp"
+// internal headers
+#include "lexer.hpp"
 
 struct Expr {
     enum {
-        INT, FLOAT, INFIX
+        FLOAT, INFIX
     } type;
 
     struct Infix {
@@ -18,17 +20,16 @@ struct Expr {
         Expr *left, *right;
     };
 
-    std::variant<int, float, Infix> data;
+    std::variant<float, std::string, Infix> data;
 };
 
 struct Stmt {
     enum {
-        LET, RET
+        LET
     } type;
 
     struct Let {
-        std::string ident;
-        Expr* expr;
+        std::string ident; Expr* expr;
     };
 
     std::variant<Let> data;
@@ -36,11 +37,11 @@ struct Stmt {
 
 class Parser {
 public:
-    Parser(const std::list<Tok> toks);
+    Parser(const std::list<Token> tokens);
     std::list<Stmt> get_stmts();
 
 private:
-    std::list<Tok> toks;
+    std::list<Token> tokens;
 
     Stmt parse_stmt();
     Stmt parse_let();

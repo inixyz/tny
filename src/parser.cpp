@@ -1,52 +1,55 @@
-#include "parse.hpp"
+#include "parser.hpp"
 
+// C++ headers
 #include <list>
+#include <string>
 
-#include "lex.hpp"
+// internal headers
+#include "lexer.hpp"
+#include "err.hpp"
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Parser::Parser(const std::list<Tok> toks) {
-    this->toks = toks;
+Parser::Parser(const std::list<Token> tokens) {
+    this->tokens = tokens;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 std::list<Stmt> Parser::get_stmts() {
     std::list<Stmt> stmts;
-
-    while (toks.front().type != Tok::END)
-        stmts.push_back(parse_stmt());
-
+    while (tokens.front().type != Token::END) stmts.push_back(parse_stmt());
     return stmts;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 Stmt Parser::parse_stmt() {
-    switch (toks.front().type) {
-    case Tok::LET: return parse_let();
+    switch (tokens.front().type) {
+    case Token::LET: return parse_let();
     }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 Stmt Parser::parse_let() {
-    toks.pop_front();
+    tokens.pop_front();
 
-    if (toks.front().type != Tok::IDENT)
+    if (tokens.front().type != Token::IDENT)
         err::fatal("Missing identifier after 'let' keyword");
 
-    const std::string ident = std::get<std::string>(toks.front().literal);
-    toks.pop_front();
+    const std::string ident = std::get<std::string>(tokens.front().literal);
+    tokens.pop_front();
 
-    if (toks.front().type != Tok::ASSIGN)
+    if (tokens.front().type != Token::ASSIGN)
         err::fatal("Expected '=' after '" + ident + "'");
 
     Expr* expr = parse_expr(-1);
 
-    if (toks.front().type != Tok::SEMICOLON)
+    if (tokens.front().type != Token::SEMICOLON)
         err::fatal("Expected ';' after expression");
+
+    return {Stmt::LET, Stmt::Let{ident, expr}};
 }
 
 ////////////////////////////////////////////////////////////////////////////////
