@@ -1,15 +1,12 @@
-CXX := g++
-CXXFLAGS := -Wall -std=c++23
+CC := gcc
+CCFLAGS := -Wall
 
-SRC := src/*.cpp
+SRC := src/*.c
 TARGET := tny
 
 all:
-	$(CXX) $(SRC) $(CXXFLAGS) -o $(TARGET)
-
-tests:
-	$(CXX) test/test_lex.cpp src/lex.cpp $(CXXFLAGS) -I src -o test_lex
+	$(CC) $(SRC) $(CCFLAGS) -o $(TARGET)
 
 .PHONY: clean
 clean:
-	rm $(TARGET) test_lex
+	rm $(TARGET)
