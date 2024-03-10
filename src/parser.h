@@ -6,8 +6,9 @@
 #include "lexer.h"
 
 enum expression_type {
-    EXPR_INFIX = 1,
+    EXPR_INFIX,
     EXPR_PREFIX,
+    EXPR_POSTFIX,
     EXPR_INT,
     EXPR_IDENT,
     EXPR_BOOL,
@@ -17,13 +18,14 @@ enum expression_type {
     EXPR_STRING,
     EXPR_ARRAY,
     EXPR_INDEX,
+    EXPR_SLICE,
     EXPR_FOR,
     EXPR_WHILE,
     EXPR_ASSIGN,
 };
 
 enum statement_type {
-    STMT_LET = 1,
+    STMT_LET,
     STMT_RETURN,
     STMT_EXPR,
     STMT_BREAK,
@@ -51,6 +53,11 @@ enum operator {
 struct prefix_expression {
     enum operator operator;
     struct expression *right;
+};
+
+struct postfix_expression {
+    enum operator operator;
+    struct expression *left;
 };
 
 struct infix_expression {
@@ -112,6 +119,12 @@ struct index_expression {
     struct expression *index;
 };
 
+struct slice_expression {
+    struct expression *left;
+    struct expression *start;
+    struct expression *end;
+};
+
 struct while_expression {
     struct expression *condition;
     struct block_statement *body;
@@ -138,12 +151,14 @@ struct expression {
         char *string;
         struct identifier ident;
         struct prefix_expression prefix;
+        struct postfix_expression postfix;
         struct infix_expression infix;
         struct if_expression ifelse;
         struct function_literal function;
         struct call_expression call;
         struct expression_list array;
         struct index_expression index;
+        struct slice_expression slice;
         struct while_expression while_loop;
         struct assignment_expression assign;
         struct for_expression for_loop;
@@ -162,7 +177,7 @@ struct parser {
     struct token next_token;
 
     uint32_t errors;
-    char error_messages[4][64];
+    char** error_messages;
 };
 
 struct parser new_parser(struct lexer *l);
@@ -173,3 +188,4 @@ void identifier_list_to_str(char *str, const struct identifier_list *identifiers
 char *program_to_str(const struct program *p);
 void free_program(struct program *p);
 char *operator_to_str(const enum operator operator);
+const char* expression_type_to_str(enum expression_type);

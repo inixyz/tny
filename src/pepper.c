@@ -40,24 +40,23 @@ static
 char *read_file(const char *filename);
 
 static
-void print_version() {
-	printf("Monkey-C %d.%d.%d\n", VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH);
+void print_version(void) {
+	printf("Pepper v%d.%d.%d\n", VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH);
 }
 
 static 
-int repl() {
-	printf("Size of object: %.3lu", sizeof(OBJ_INT));
+int repl(void) {
 	print_version();
-	printf("press CTRL+c to exit\n\n");
+	printf("Press CTRL+c to exit\n\n");
+
 	struct program *program;
 	struct symbol_table *symbol_table = symbol_table_new();
 	struct object_list *constants = make_object_list(64);
-	struct object_list *globals = make_object_list(64);
+	struct object globals[GLOBALS_SIZE];
 	char input[BUFSIZ] = { '\0' };
-	char output[BUFSIZ] = { '\0' };
 	while (1)
 	{
-		printf("> ");
+		printf(">> ");
 		if (fgets(input, BUFSIZ, stdin) == NULL) {
 			continue;
 		}
@@ -65,10 +64,10 @@ int repl() {
 		struct lexer lexer = new_lexer(input);
 		struct parser parser = new_parser(&lexer);
 		program = parse_program(&parser);
-	
+
 		if (parser.errors > 0) {
-			printf("Whoops! Parsing error:\n");
-			for (int i = 0; i < parser.errors; i++) {
+			printf("Parsing error:\n");
+			for (unsigned i = 0; i < parser.errors; i++) {
 				printf("- %s\n", parser.error_messages[i]);
 			}
 
@@ -91,23 +90,20 @@ int repl() {
 		}
 
 		struct object obj = vm_stack_last_popped(machine);
-		obj = copy_object(&obj);
-		if (obj.type != OBJ_NULL && obj.type != OBJ_BUILTIN && obj.type != OBJ_COMPILED_FUNCTION && obj.type != OBJ_BUILTIN) {
-			object_to_str(output, obj);
-			printf("%s\n", output);
+		if (obj.type != OBJ_COMPILED_FUNCTION && obj.type != OBJ_BUILTIN) {
+			print_object(obj);
+			puts("");
 		}
 
-		// clear output buffer
-		output[0] = '\0';
+		// copy globals out of VM so we can re-use them in next iteration
+		for (unsigned i=0; i < GLOBALS_SIZE; i++) {
+			globals[i] = machine->globals[i];
+		}
 
-		// move globals out of VM so we can re-use them in next iteration
-		globals = machine->globals;
-
+		//free_parser(&parser);
 		//free_program(program);
 		//compiler_free(compiler);
 		//vm_free(machine);
-		free_object_list(machine->constants);
-		free_object_list(machine->stack);
 		free(code);
 	}
 
@@ -122,18 +118,17 @@ int run_script(const char *filename) {
 	struct program *program = parse_program(&parser);
 
 	if (parser.errors > 0) {
-		for (int8_t i = 0; i < parser.errors; i++) {
+		for (unsigned i = 0; i < parser.errors; i++) {
 			puts(parser.error_messages[i]);
 		}
 
-		exit(1);
+		return EXIT_FAILURE;
 	}
-
 
 	struct compiler *compiler = compiler_new();
 	int err = compile_program(compiler, program);
 	if (err) {
-		puts(compiler_error_str(err));
+		printf("SyntaxError: %s\n", compiler_error_str(err));
 		return EXIT_FAILURE;
 	}
 

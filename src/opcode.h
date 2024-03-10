@@ -42,6 +42,7 @@ enum opcode {
     OPCODE_ARRAY,
     OPCODE_INDEX_GET,
     OPCODE_INDEX_SET,
+    OPCODE_SLICE,
     OPCODE_HALT,
 };
 
@@ -53,8 +54,8 @@ struct definition {
 
 struct instruction {
     uint8_t *bytes;
-    uint32_t cap;
-    uint32_t size;
+    unsigned cap;
+    unsigned size;
 };
 
 struct bytecode {
@@ -62,12 +63,12 @@ struct bytecode {
     struct object_list *constants;
 };
 
-const char *opcode_to_str(const enum opcode opcode);
-const struct definition lookup(const enum opcode opcode);
+const char *opcode_to_str(enum opcode opcode);
+struct definition lookup(enum opcode opcode);
 struct instruction *make_instruction(enum opcode opcode, ...);
-struct instruction *make_instruction_va(const enum opcode opcode, va_list operands);
+struct instruction *make_instruction_va(enum opcode opcode, va_list operands);
 struct instruction *copy_instructions(const struct instruction *a);
 void free_instruction(struct instruction *ins);
-struct instruction *flatten_instructions_array(struct instruction *arr[], const uint32_t size);
+struct instruction *flatten_instructions_array(struct instruction *arr[], unsigned size);
 char *instruction_to_str(struct instruction *ins);
-uint32_t read_operands(uint32_t dest[], struct definition def, const struct instruction *ins, uint32_t offset);
+unsigned read_operands(unsigned dest[], struct definition def, const struct instruction *ins, uint32_t offset);

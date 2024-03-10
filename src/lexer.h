@@ -5,20 +5,24 @@
 #define MAX_IDENT_LENGTH 64
 
 enum token_type {
-    TOKEN_ILLEGAL, TOKEN_EOF,
-
-    TOKEN_IDENT, TOKEN_INT,
-
-    TOKEN_FUNCTION, TOKEN_LET,
-
-    TOKEN_TRUE, TOKEN_FALSE,
-
-    TOKEN_IF, TOKEN_ELSE, TOKEN_FOR, TOKEN_WHILE,
-
-    TOKEN_RETURN, TOKEN_ASSIGN,
-
-    TOKEN_PLUS, TOKEN_MINUS, TOKEN_BANG,
-
+    TOKEN_ILLEGAL,
+    TOKEN_EOF,
+    TOKEN_IDENT,
+    TOKEN_INT,
+    TOKEN_FUNCTION,
+    TOKEN_LET,
+    TOKEN_TRUE,
+    TOKEN_FALSE, 
+    TOKEN_IF,
+    TOKEN_ELSE,
+    TOKEN_FOR,
+    TOKEN_IN,
+    TOKEN_WHILE,
+    TOKEN_RETURN,
+    TOKEN_ASSIGN,
+    TOKEN_PLUS,
+    TOKEN_MINUS,
+    TOKEN_BANG,
     TOKEN_ASTERISK,
     TOKEN_SLASH,
     TOKEN_PERCENT,
@@ -41,6 +45,7 @@ enum token_type {
     TOKEN_OR,
     TOKEN_BREAK,
     TOKEN_CONTINUE,
+    TOKEN_COLON,
 };
 
 struct token {
@@ -48,12 +53,22 @@ struct token {
     char literal[MAX_IDENT_LENGTH];
     const char *start;
     const char *end;
+
+    uint32_t line;
+    uint32_t pos;
 };
 
 struct lexer {
     const char *input;
+
+    /* pos in file */
     uint32_t pos;
-    uint32_t cur_lineno;    
+
+    /* line number */
+    uint32_t cur_lineno;
+    
+    /* position in line */
+    uint32_t cur_linepos;
 };
 
 int gettoken(struct lexer *l, struct token *t);

@@ -8,7 +8,6 @@
 #include "opcode.h"
 #include "parser.h"
 #include "symbol_table.h"
-#include "vm.h"
 #include "builtins.h"
 
 enum {
@@ -16,6 +15,7 @@ enum {
     COMPILE_ERR_UNKNOWN_OPERATOR,
     COMPILE_ERR_UNKNOWN_EXPR_TYPE,
     COMPILE_ERR_UNKNOWN_IDENT,
+    COMPILE_ERR_PREVIOUSLY_DECLARED,
 };
 
 const uint16_t JUMP_PLACEHOLDER_BREAK = 9999;
@@ -24,7 +24,7 @@ const uint16_t JUMP_PLACEHOLDER_CONTINUE = 9998;
 static int compile_statement(struct compiler *compiler, const struct statement *statement);
 static int compile_expression(struct compiler *compiler, const struct expression *expression);
 
-struct compiler *compiler_new() {
+struct compiler *compiler_new(void) {
     struct compiler *c = malloc(sizeof *c);
     assert(c != NULL);
     struct compiler_scope scope;
@@ -66,12 +66,13 @@ void compiler_free(struct compiler *c) {
 }
 
 /* TODO: We probably want dynamic error messages that includes parts of the program string */
-const char *compiler_error_str(const int err) {
-    const char *error_messages[] = {
+const char *compiler_error_str(int err) {
+    static const char *error_messages[] = {
         "Success",
         "Unknown operator",
         "Unknown expression type",
-        "Undefined variable"
+        "Undefined variable",
+        "Redeclaration of variable",
     };
     return error_messages[err];
 }
@@ -83,25 +84,6 @@ struct compiler_scope compiler_current_scope(struct compiler *c) {
 struct instruction *compiler_current_instructions(struct compiler *c) {
     struct compiler_scope scope = compiler_current_scope(c);
     return scope.instructions;
-}
-
-static uint32_t 
-add_instruction(struct compiler *c, struct instruction *ins) {
-    struct instruction *cins = compiler_current_instructions(c);
-    uint32_t pos = cins->size;
-    uint32_t new_size = cins->size + ins->size;
-
-    if (new_size >= cins->cap) {
-        cins->cap *= 2;
-        cins->bytes = realloc(cins->bytes, cins->cap * sizeof(*cins->bytes));
-        assert(cins->bytes != NULL);
-    }
-    
-    // append instruction code to current compiler code
-    memcpy(cins->bytes + cins->size, ins->bytes, ins->size * sizeof(*ins->bytes));
-    cins->size += ins->size;
-    free_instruction(ins);
-    return pos;
 }
 
 static uint32_t
@@ -156,13 +138,38 @@ static void compiler_change_operand(struct compiler *c, uint32_t pos, uint16_t o
     }
 }
 
+static uint32_t compiler_emit_va(struct compiler *c, enum opcode opcode, va_list operands) {
+    struct definition def = lookup(opcode);  
+    struct instruction *cins = compiler_current_instructions(c);
+
+    if (cins->size + def.operands * 3 >= cins->cap) {
+        cins->cap *= 2;
+        cins->bytes = realloc(cins->bytes, cins->cap * sizeof(*cins->bytes));
+        assert(cins->bytes != NULL);
+    }
+
+    uint32_t pos = cins->size;
+
+    // write opcode to bytecode
+    cins->bytes[cins->size++] = opcode;
+
+    // write operands to bytecode
+    for (uint8_t op_idx = 0; op_idx < def.operands; op_idx++) {
+        int64_t operand = va_arg(operands, int64_t);
+        for (int8_t byte_idx = def.operand_widths[op_idx]-1; byte_idx >= 0; byte_idx--) {
+            cins->bytes[cins->size++] = (uint8_t) (operand >> (byte_idx * 8));
+        }
+    }
+
+    compiler_set_last_instruction(c, opcode, pos);
+    return pos;
+}
+
 uint32_t compiler_emit(struct compiler *c, enum opcode opcode, ...) {
     va_list args;
     va_start(args, opcode);
-    struct instruction *ins = make_instruction_va(opcode, args);
+    uint32_t pos = compiler_emit_va(c, opcode, args);
     va_end(args);
-    uint32_t pos = add_instruction(c, ins);
-    compiler_set_last_instruction(c, opcode, pos);
     return pos;
 }
 
@@ -211,13 +218,28 @@ compile_statement(struct compiler *c, const struct statement *stmt) {
 
         case STMT_LET: {
             struct symbol *s = symbol_table_define(c->symbol_table, stmt->name.value);
-            err = compile_expression(c, stmt->value);
-            if (err) return err;
+            if (s == NULL) {
+                return COMPILE_ERR_PREVIOUSLY_DECLARED;
+            }
+
+            if (stmt->value != NULL) {
+                err = compile_expression(c, stmt->value);
+                if (err) return err;
+            } else {
+                // declaration without value
+                // Eg: let foo;
+                compiler_emit(c, OPCODE_NULL);
+            }
             compiler_emit(c, s->scope == SCOPE_GLOBAL ? OPCODE_SET_GLOBAL : OPCODE_SET_LOCAL, s->index);
         }
         break;
 
         case STMT_RETURN: {
+            // return statements have an optional value expression
+            if (stmt->value == NULL) {
+                return 0;
+            }
+
             err = compile_expression(c, stmt->value);
             if (err) return err;
             compiler_emit(c, OPCODE_RETURN_VALUE);
@@ -249,74 +271,80 @@ void compiler_change_jump_placeholders(struct compiler* c, uint32_t pos_start, u
     }
 }
 
-static int 
+static int compile_infix_expression(struct compiler *c, const struct expression *expr) {
+    int err = compile_expression(c, expr->infix.left);
+    if (err) return err;
+
+    err = compile_expression(c, expr->infix.right);
+    if (err) return err;
+
+    switch (expr->infix.operator) {
+        case OP_ADD:
+            compiler_emit(c, OPCODE_ADD);
+        break;
+
+        case OP_SUBTRACT:
+            compiler_emit(c, OPCODE_SUBTRACT);
+        break;
+
+        case OP_MULTIPLY:
+            compiler_emit(c, OPCODE_MULTIPLY);
+        break;
+
+        case OP_DIVIDE:
+            compiler_emit(c, OPCODE_DIVIDE);
+        break;
+
+        case OP_MODULO:
+            compiler_emit(c, OPCODE_MODULO);
+        break;
+
+        case OP_GTE:
+            compiler_emit(c, OPCODE_GREATER_THAN_OR_EQUALS);
+        break;
+
+        case OP_GT:
+            compiler_emit(c, OPCODE_GREATER_THAN);
+        break;
+
+        case OP_EQ:
+            compiler_emit(c, OPCODE_EQUAL);
+        break;
+
+        case OP_NOT_EQ:
+            compiler_emit(c, OPCODE_NOT_EQUAL);
+        break;
+
+        case OP_LT:
+            compiler_emit(c, OPCODE_LESS_THAN);
+        break;
+
+        case OP_LTE:
+            compiler_emit(c, OPCODE_LESS_THAN_OR_EQUALS);
+        break;
+
+        case OP_AND:
+            compiler_emit(c, OPCODE_AND);
+        break;
+
+        case OP_OR:
+            compiler_emit(c, OPCODE_OR);
+        break;
+
+        default:
+            return COMPILE_ERR_UNKNOWN_OPERATOR;
+        break;
+    }
+
+    return 0;
+}
+
+static int
 compile_expression(struct compiler *c, const struct expression *expr) {
     int err;
     switch (expr->type) {
         case EXPR_INFIX: {
-            err = compile_expression(c, expr->infix.left);
-            if (err) return err;
-
-            err = compile_expression(c, expr->infix.right);
-            if (err) return err;
-
-            switch (expr->infix.operator) {
-                case OP_ADD:
-                    compiler_emit(c, OPCODE_ADD);
-                break;
-
-                case OP_SUBTRACT:
-                    compiler_emit(c, OPCODE_SUBTRACT);
-                break;
-
-                case OP_MULTIPLY: 
-                    compiler_emit(c, OPCODE_MULTIPLY);
-                break;
-
-                case OP_DIVIDE: 
-                    compiler_emit(c, OPCODE_DIVIDE);
-                break;
-
-                case OP_MODULO: 
-                    compiler_emit(c, OPCODE_MODULO);
-                break;
-
-                case OP_GTE:
-                    compiler_emit(c, OPCODE_GREATER_THAN_OR_EQUALS);
-                break;
-
-                case OP_GT:
-                    compiler_emit(c, OPCODE_GREATER_THAN);
-                break;
-
-                case OP_EQ: 
-                    compiler_emit(c, OPCODE_EQUAL);
-                break;
-
-                case OP_NOT_EQ:
-                    compiler_emit(c, OPCODE_NOT_EQUAL);
-                break;
-
-                case OP_LT:
-                    compiler_emit(c, OPCODE_LESS_THAN);
-                break;
-
-                case OP_LTE:
-                    compiler_emit(c, OPCODE_LESS_THAN_OR_EQUALS);
-                break;
-
-                case OP_AND:
-                    compiler_emit(c, OPCODE_AND);
-                break;
-
-                case OP_OR:
-                    compiler_emit(c, OPCODE_OR);
-                break;
-
-                default: 
-                    return COMPILE_ERR_UNKNOWN_OPERATOR;
-                break;
-            }
+            return compile_infix_expression(c, expr);
         }
         break;   
 
@@ -337,6 +365,41 @@ compile_expression(struct compiler *c, const struct expression *expr) {
                     return COMPILE_ERR_UNKNOWN_OPERATOR;
                 break;
             }   
+        }
+        break;
+
+        case EXPR_POSTFIX: {
+            // load identifier on the stack
+            err = compile_expression(c, expr->postfix.left);
+            if (err) return err;
+
+            // load again on the stack
+            err = compile_expression(c, expr->postfix.left);
+            if (err) return err;
+
+            // load 1 on the stack
+            compiler_emit(c, OPCODE_CONST, add_constant(c, make_integer_object(1)));
+
+            switch (expr->postfix.operator) {
+                case OP_ADD: 
+                    compiler_emit(c, OPCODE_ADD);
+                break;
+
+                case OP_SUBTRACT: 
+                    compiler_emit(c, OPCODE_SUBTRACT);
+                break;
+
+                default: 
+                    return COMPILE_ERR_UNKNOWN_OPERATOR;
+                break;
+            }   
+
+            // store result in identifier
+            struct symbol *s = symbol_table_resolve(c->symbol_table, expr->postfix.left->ident.value);
+            if (s == NULL) {
+                return COMPILE_ERR_UNKNOWN_IDENT;
+            }
+            compiler_emit(c, s->scope == SCOPE_GLOBAL ? OPCODE_SET_GLOBAL : OPCODE_SET_LOCAL, s->index);        
         }
         break;
 
@@ -393,7 +456,7 @@ compile_expression(struct compiler *c, const struct expression *expr) {
         break;
 
         case EXPR_STRING: {
-            struct object obj = make_string_object(expr->string, NULL);
+            struct object obj = make_string_object(expr->string);
             compiler_emit(c, OPCODE_CONST, add_constant(c, obj));
         }
         break;
@@ -440,6 +503,7 @@ compile_expression(struct compiler *c, const struct expression *expr) {
             struct instruction *ins = compiler_leave_scope(c);
             struct object obj = make_compiled_function_object(ins, num_locals);
             compiler_emit(c, OPCODE_CONST, add_constant(c, obj));
+            free_instruction(ins);
         }
         break;
 
@@ -545,11 +609,33 @@ compile_expression(struct compiler *c, const struct expression *expr) {
         break;
 
         case EXPR_ARRAY:
-            for (int i=0; i < expr->array.size; i++) {
+            for (unsigned i=0; i < expr->array.size; i++) {
                 err = compile_expression(c, expr->array.values[i]);
                 if (err) return err;
             }
             compiler_emit(c, OPCODE_ARRAY, expr->array.size);
+        break;
+
+        case EXPR_SLICE: {
+            err = compile_expression(c, expr->slice.left); 
+            if (err) return err;
+            
+            if (expr->slice.start != NULL) {
+                err = compile_expression(c, expr->slice.start); 
+                if (err) return err;
+            } else {
+                compiler_emit(c, OPCODE_NULL);
+            }
+
+            if (expr->slice.end != NULL) {
+                err = compile_expression(c, expr->slice.end); 
+                if (err) return err;
+            } else {
+                compiler_emit(c, OPCODE_NULL);
+            }
+            
+            compiler_emit(c, OPCODE_SLICE);
+        }
         break;
 
         case EXPR_INDEX: {

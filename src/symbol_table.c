@@ -7,17 +7,17 @@
 
 #define hash(v) (v[0] - 'a')
 
-static struct hashmap *hashmap_new();
+static struct hashmap *hashmap_new(void);
 static void hashmap_insert(struct hashmap *hm, const char *key, void *item);
 static void *hashmap_get(struct hashmap *hm, const char *key);
 static void hashmap_free(struct hashmap *hm);
 
 static struct hashmap *
-hashmap_new() {
+hashmap_new(void) {
     struct hashmap *hm = malloc(sizeof *hm);
     if (!hm) err(EXIT_FAILURE, "out of memory");
 
-    for (int8_t i=0; i < 26; i++) {
+    for (unsigned i=0; i < 26u; i++) {
         hm->table[i] = NULL;
     }
 
@@ -51,8 +51,9 @@ hashmap_insert(struct hashmap *hm, const char *key, void *item) {
 
 static void *
 hashmap_get(struct hashmap *hm, const char *key) {
-    const int8_t pos = hash(key);
+    unsigned pos = hash(key);
     struct hashmap_node *node = hm->table[pos];
+
     while (node) {
          if (strcmp(node->key, key) == 0) {
            return node->value;
@@ -67,7 +68,7 @@ void hashmap_free(struct hashmap *hm) {
     struct hashmap_node *node;
     struct hashmap_node *next;
 
-    for (int8_t i=0; i < 26; i++) {
+    for (unsigned i=0; i < 26u; i++) {
         node = hm->table[i];
         while (node) {
             next = node->next;
@@ -80,7 +81,7 @@ void hashmap_free(struct hashmap *hm) {
     free(hm);
 }
 
-struct symbol_table *symbol_table_new() {
+struct symbol_table *symbol_table_new(void) {
     struct symbol_table *t = malloc(sizeof *t);
     if (!t) err(EXIT_FAILURE, "out of memory");
     t->size = 0;
@@ -98,8 +99,8 @@ struct symbol_table *symbol_table_new_enclosed(struct symbol_table *outer) {
 struct symbol *symbol_table_define(struct symbol_table *t, const char *name) {
     struct symbol *s;
 
-    // check for conflicting names here
-    s = symbol_table_resolve(t, name);
+    // // resolve symbol, but only in the current scope (don't traverse t->outer)
+    s = (struct symbol*) hashmap_get(t->store, name);
     if (s != NULL) {
         return s;
     }

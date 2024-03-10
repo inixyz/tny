@@ -1,9 +1,3 @@
-for (let i = 0; i < 10; i = i + 1) {
-    puts(i);
-}
+let m = [[1, 2], [3, 4]];
 
-puts("end");
-
-for (i in [1, 2, 3]) {
-    puts(i);
-}
+print(m[0][0]);
