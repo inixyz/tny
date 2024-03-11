@@ -3,7 +3,7 @@
 #include <stddef.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include "lexer.h"
+#include "lex.h"
 
 enum expression_type {
     EXPR_INFIX,

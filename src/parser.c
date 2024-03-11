@@ -4,7 +4,7 @@
 #include <string.h>
 #include <stdio.h>
 #include "parser.h"
-#include "lexer.h"
+#include "lex.h"
 #include "util.h"
 
 

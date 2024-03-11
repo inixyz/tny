@@ -1,3 +1,2 @@
-let m = [[1, 2], [3, 4]];
-
-print(m[0][0]);
+if (3 > 2) {print("yes");}
+else {print("no");}
