@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <ctype.h>
+#include <stdlib.h>
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -14,27 +15,74 @@ static inline char next_ch(Lex* const lex) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static inline bool next_if(Lex* const lex, const char ch) {
+    return lex->in[lex->pos] == ch ? next_ch(lex) : false;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+static inline void check_line_advance(Lex* const lex, const char ch) {
+    if (ch == '\n') {
+        lex->text_pos.line++;
+        lex->text_pos.column = 0;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 Tok next_tok(Lex* const lex) {
     char ch = next_ch(lex);
 
     // skip whitespace
     while (isspace(ch)) {
-        if (ch == '\n') {
-            lex->text_pos.line++;
-            lex->text_pos.column = 0;
-        }
+        check_line_advance(lex, ch);
         ch = next_ch(lex);
     }
 
     Tok tok = {TOK_ILLEGAL, .text_pos = lex->text_pos};
 
     switch (ch) {
-    case ',': tok.type = TOK_COMMA; break;
+    case ',': tok.type = TOK_COMMA;     break;
     case ';': tok.type = TOK_SEMICOLON; break;
-    case '(': tok.type = TOK_LPAREN; break;
-    case ')': tok.type = TOK_RPAREN; break;
-    case '[': tok.type = TOK_LBRACKET; break;
-    case ']': tok.type = TOK_RBRACKET; break;
+    case '(': tok.type = TOK_LPAREN;    break;
+    case ')': tok.type = TOK_RPAREN;    break;
+    case '[': tok.type = TOK_LBRACKET;  break;
+    case ']': tok.type = TOK_RBRACKET;  break;
+    case '{': tok.type = TOK_LBRACE;    break;
+    case '}': tok.type = TOK_RBRACE;    break;
+    case '+': tok.type = TOK_SUM;       break;
+    case '-': tok.type = TOK_SUB;       break;
+    case '*': tok.type = TOK_MUL;       break;
+    case '/': tok.type = TOK_DIV;       break;
+    case '%': tok.type = TOK_MOD;       break;
+
+    case '=': tok.type = next_if(lex, '=') ? TOK_EQ : TOK_ASSIGN; break;
+    case '!': tok.type = next_if(lex, '=') ? TOK_NEQ : TOK_NOT; break;
+    case '>': tok.type = next_if(lex, '=') ? TOK_GTEQ : TOK_GT; break;
+    case '<': tok.type = next_if(lex, '=') ? TOK_LTEQ : TOK_LT; break;
+    case '&': tok.type = next_if(lex, '&') ? TOK_AND : TOK_ILLEGAL; break;
+    case '|': tok.type = next_if(lex, '|') ? TOK_OR : TOK_ILLEGAL; break;
+
+    case '\0': tok.type = TOK_EOF; break;
+
+    case '"': {
+        const size_t start = lex->pos;
+        do {
+            ch = next_ch(lex);
+            check_line_advance(lex, ch);
+        } while (ch != '"' && ch != '\0');
+
+        if (ch == '\0') {
+            tok.type = TOK_ILLEGAL; break;
+        }
+
+        const size_t size = lex->pos - start;
+
+        tok.literal.str = strncpy(malloc(size), lex->in + start, size);
+        tok.literal.str[size - 1] = '\0';
+        tok.type = TOK_STR;
+        break;
+    }
     }
 
     return tok;
