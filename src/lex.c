@@ -130,7 +130,7 @@ Tok next_tok(Lex* const lex) {
         break;
 
     case 'a' ... 'z': case 'A' ... 'Z': case '_':
-        tok.literal.str = next_str_rule(lex, is_str);
+        tok.literal.str = next_str_rule(lex, is_ident);
         tok.type = identify_keyword(tok.literal.str);
         break;
 
