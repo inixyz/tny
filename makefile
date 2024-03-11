@@ -1,5 +1,5 @@
 CC := gcc
-CCFLAGS := -Wall
+CCFLAGS := -Wall -DNrType=double
 
 SRC := src/*.c
 TARGET := tny

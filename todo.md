@@ -7,3 +7,5 @@ code:
     - 'Token' becomes 'Tok'
     - 'Lexer' becomes 'Lex'
     - typedefs for entire Lexer
+
+    - add comments
