@@ -2,6 +2,7 @@
 #define LEX_H
 
 #include <stdint.h>
+#include <stddef.h>
 
 #define MAX_IDENT_LENGTH 64
 
