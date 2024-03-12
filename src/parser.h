@@ -5,32 +5,32 @@
 #include <stdint.h>
 #include "lex.h"
 
-enum expression_type {
-    EXPR_INFIX,
-    EXPR_PREFIX,
-    EXPR_POSTFIX,
-    EXPR_INT,
-    EXPR_IDENT,
-    EXPR_BOOL,
-    EXPR_IF,
-    EXPR_FUNCTION,
-    EXPR_CALL,
-    EXPR_STRING,
-    EXPR_ARRAY,
-    EXPR_INDEX,
-    EXPR_SLICE,
-    EXPR_FOR,
-    EXPR_WHILE,
-    EXPR_ASSIGN,
-};
+typedef enum {
+    EXPR_IDENT, EXPR_NR, EXPR_STR, EXPR_LIST, EXPR_INDEX, EXPR_ASSIGN,
+    EXPR_PREFIX, EXPR_INFIX, EXPR_FN, EXPR_CALL, EXPR_IF, EXPR_WHILE, EXPR_FOR,
+} ExprType;
 
-enum statement_type {
-    STMT_LET,
-    STMT_RETURN,
-    STMT_EXPR,
-    STMT_BREAK,
-    STMT_CONTINUE,
-};
+typedef struct {
+    size_t size; Expr* items[];
+} ExprList;
+
+typedef struct {
+    Expr *left, *index;
+} ExprIndex;
+
+// TODO pair up structs with the same fields
+
+typedef struct {
+    Expr *left, *right;
+} ExprAssign;
+
+typedef struct {
+    Expr* right;
+} ExprPrefix;
+
+typedef enum {
+    STMT_LET, STMT_RETURN, STMT_BREAK, STMT_CONTINUE, STMT_EXPR
+} StmtType;
 
 enum operator {
     OP_UNKNOWN,
@@ -48,11 +48,6 @@ enum operator {
     OP_AND,
     OP_OR,
     OP_MODULO,
-};
-
-struct prefix_expression {
-    enum operator operator;
-    struct expression *right;
 };
 
 struct postfix_expression {
@@ -103,16 +98,14 @@ struct function_literal {
     struct block_statement *body;
 };
 
-struct expression_list {
-    uint32_t size;
-    uint32_t cap;
-    struct expression **values;
-};
+
 
 struct call_expression {
     struct expression *function;
     struct expression_list arguments;
 };
+
+
 
 struct index_expression {
     struct expression *left;
@@ -137,10 +130,9 @@ struct for_expression {
     struct block_statement *body;
 };
 
-struct assignment_expression {
-    struct expression *left;
-    struct expression *value;
-};
+typedef struct {
+    ExprType type;
+} Expr;
 
 struct expression {
     enum expression_type type;
