@@ -1,15 +1,15 @@
 #include "lex.h"
 
-#include "err.h"
+#include <stdbool.h>
+#include <ctype.h>
+#include <string.h>
 
-////////////////////////////////////////////////////////////////////////////////
+#include "err.h"
 
 static inline char next_ch(Lex* const lex) {
     lex->text_pos.column++;
     return lex->in[lex->pos++];
 }
-
-////////////////////////////////////////////////////////////////////////////////
 
 static inline void check_line_advance(Lex* const lex, const char ch) {
     if (ch == '\n') {
@@ -18,33 +18,23 @@ static inline void check_line_advance(Lex* const lex, const char ch) {
     }
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
 static inline bool next_if(Lex* const lex, const char ch) {
     return lex->in[lex->pos] == ch ? next_ch(lex) : false;
 }
-
-////////////////////////////////////////////////////////////////////////////////
 
 static inline bool is_str(const char ch) {
     return ch != '"';
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
 static inline bool is_nr(const char ch) {
-    return isxdigit(ch) || strchr("inptyINPTY", ch);
+    return isxdigit(ch) || strchr("inpty", tolower(ch));
 }
-
-////////////////////////////////////////////////////////////////////////////////
 
 static inline bool is_ident(const char ch) {
     return isalpha(ch) || isdigit(ch) || ch == '_';
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-char* next_str_rule(Lex* const lex, bool (*rule)(const char)) {
+char* next_sequence(Lex* const lex, bool (*rule)(const char)) {
     char ch = lex->in[lex->pos - 1];
     const size_t start = lex->pos - rule(ch);
 
@@ -62,8 +52,6 @@ char* next_str_rule(Lex* const lex, bool (*rule)(const char)) {
     return str;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
 TokType identify_keyword(const char* literal) {
     static const char* KEYWORDS[] = {
         "let", "fn", "return", "if", "else", "while", "for", "break", "continue"
@@ -75,8 +63,6 @@ TokType identify_keyword(const char* literal) {
 
     return TOK_IDENT;
 }
-
-////////////////////////////////////////////////////////////////////////////////
 
 Tok next_tok(Lex* const lex) {
     char ch = next_ch(lex);
@@ -121,16 +107,16 @@ Tok next_tok(Lex* const lex) {
 
     case '"':
         tok.type = TOK_STR;
-        tok.literal.str = next_str_rule(lex, is_str);
+        tok.literal.str = next_sequence(lex, is_str);
         break;
 
     case '0' ... '9':
         tok.type = TOK_NR;
-        tok.literal.nr = atof(next_str_rule(lex, is_nr));
+        tok.literal.nr = atof(next_sequence(lex, is_nr));
         break;
 
     case 'a' ... 'z': case 'A' ... 'Z': case '_':
-        tok.literal.str = next_str_rule(lex, is_ident);
+        tok.literal.str = next_sequence(lex, is_ident);
         tok.type = identify_keyword(tok.literal.str);
         break;
 
@@ -143,10 +129,6 @@ Tok next_tok(Lex* const lex) {
     return tok;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
 Lex lex_new(const char* const in) {
     return (Lex){in, 0, (TextPos){1, 1}};
 }
-
-////////////////////////////////////////////////////////////////////////////////
