@@ -43,8 +43,8 @@ char* next_sequence(Lex* const lex, bool (*rule)(const char)) {
         check_line_advance(lex, ch);
     } while (rule(ch) && ch != '\0');
 
-    if (ch == '\0') err(lex->text_pos, "Unexpected terminating character");
-    else if (!rule(ch)) err(lex->text_pos, "Unexpected '%c' in sequence", ch);
+    if (ch == '\0') err(lex->location, "Unexpected terminating character");
+    else if (!rule(ch)) err(lex->location, "Unexpected '%c' in sequence", ch);
 
     const size_t size = lex->pos - start;
     char* str = strncpy(malloc(size), lex->in + start, size);
@@ -64,7 +64,11 @@ TokType identify_keyword(const char* literal) {
     return TOK_IDENT;
 }
 
-Tok next_tok(Lex* const lex) {
+Lex lex_new(const char* const in) {
+    return (Lex){in, 0, (TextLocation){1, 1}};
+}
+
+Tok lex_next_tok(Lex* const lex) {
     char ch = next_ch(lex);
 
     // skip whitespace
@@ -97,38 +101,34 @@ Tok next_tok(Lex* const lex) {
     case '<': tok.type = next_if(lex, '=') ? TOK_LTEQ : TOK_LT; break;
     case '&':
         if (next_if(lex, '&')) tok.type = TOK_AND;
-        else err(lex->text_pos, "Invalid token '&%c'", ch);
+        else err(lex->location, "Invalid token '&%c'", ch);
         break;
 
     case '|':
         if (next_if(lex, '|')) tok.type = TOK_OR;
-        else err(lex->text_pos, "Invalid token '|%c'", ch);
+        else err(lex->location, "Invalid token '|%c'", ch);
         break;
 
     case '"':
         tok.type = TOK_STR;
-        tok.literal.str = next_sequence(lex, is_str);
+        tok.str = next_sequence(lex, is_str);
         break;
 
     case '0' ... '9':
         tok.type = TOK_NR;
-        tok.literal.nr = atof(next_sequence(lex, is_nr));
+        tok.nr = atof(next_sequence(lex, is_nr));
         break;
 
     case 'a' ... 'z': case 'A' ... 'Z': case '_':
-        tok.literal.str = next_sequence(lex, is_ident);
-        tok.type = identify_keyword(tok.literal.str);
+        tok.str = next_sequence(lex, is_ident);
+        tok.type = identify_keyword(tok.str);
         break;
 
     case '\0': tok.type = TOK_EOF; break;
     default:
-        err(lex->text_pos, "Could not match any token for character '%c'", ch);
+        err(lex->location, "Could not match any token for character '%c'", ch);
     }
 
-    tok.text_pos = lex->text_pos;
+    tok.location = lex->location;
     return tok;
-}
-
-Lex lex_new(const char* const in) {
-    return (Lex){in, 0, (TextPos){1, 1}};
 }

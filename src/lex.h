@@ -3,6 +3,8 @@
 
 #include <stddef.h>
 
+#include "err.h"
+
 typedef enum {
     TOK_EOF,
 
@@ -28,23 +30,19 @@ typedef enum {
 } TokType;
 
 typedef struct {
-    size_t line, column;
-} TextPos;
-
-typedef struct {
     TokType type;
     union {
         NrType nr; char* str;
-    } literal;
-    TextPos text_pos;
+    };
+    TextLocation location;
 } Tok;
 
 typedef struct {
     const char* in; size_t pos;
-    TextPos text_pos;
+    TextLocation location;
 } Lex;
 
-Tok next_tok(Lex* const lex);
 Lex lex_new(const char* const in);
+Tok lex_next_tok(Lex* const lex);
 
 #endif // LEX_H
