@@ -27,7 +27,7 @@ static inline bool is_str(const char ch) {
 }
 
 static inline bool is_nr(const char ch) {
-    return isxdigit(ch) || strchr("inpty", tolower(ch));
+    return isxdigit(ch) || strchr(".inpty", tolower(ch));
 }
 
 static inline bool is_ident(const char ch) {

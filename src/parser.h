@@ -28,8 +28,24 @@ typedef struct {
     Expr* right;
 } ExprPrefix;
 
+typedef struct {
+    char op; // must do enum for operators
+    Expr *left, *right;
+} ExprInfix;
+
+typedef struct {
+    char* name;
+    ExprList params;
+    StmtBlock* body;
+} ExprFn;
+
+typedef struct {
+    Expr* fn;
+    ExprList args;
+} ExprCall;
+
 typedef enum {
-    STMT_LET, STMT_RETURN, STMT_BREAK, STMT_CONTINUE, STMT_EXPR
+    STMT_EXPR, STMT_LET, STMT_RETURN, STMT_BREAK, STMT_CONTINUE
 } StmtType;
 
 enum operator {
@@ -50,27 +66,6 @@ enum operator {
     OP_MODULO,
 };
 
-struct postfix_expression {
-    enum operator operator;
-    struct expression *left;
-};
-
-struct infix_expression {
-    enum operator operator;
-    struct expression *left;
-    struct expression *right;
-};
-
-struct identifier {
-    char value[MAX_IDENT_LENGTH];
-    struct token token;
-};
-
-struct identifier_list {
-    struct identifier *values;
-    uint32_t size;
-    uint32_t cap;
-};
 
 struct statement {
     enum statement_type type;
@@ -92,31 +87,6 @@ struct if_expression {
     struct block_statement *alternative;
 };
 
-struct function_literal {
-    char name[MAX_IDENT_LENGTH];
-    struct identifier_list parameters;
-    struct block_statement *body;
-};
-
-
-
-struct call_expression {
-    struct expression *function;
-    struct expression_list arguments;
-};
-
-
-
-struct index_expression {
-    struct expression *left;
-    struct expression *index;
-};
-
-struct slice_expression {
-    struct expression *left;
-    struct expression *start;
-    struct expression *end;
-};
 
 struct while_expression {
     struct expression *condition;
