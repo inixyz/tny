@@ -48,6 +48,11 @@ typedef enum {
     STMT_EXPR, STMT_LET, STMT_RETURN, STMT_BREAK, STMT_CONTINUE
 } StmtType;
 
+
+typedef enum {
+    OP_SUM, OP_SUB, OP_MUL, OP_DIV, OP_
+} InfixOp;
+
 enum operator {
     OP_UNKNOWN,
     OP_ADD,
