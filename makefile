@@ -1,8 +1,8 @@
 CC := gcc
-CCFLAGS := -Wall -DNrType=double
+CCFLAGS := -Wall -DNum=double
 
 SRC := src/*.c
-TARGET := tny
+TARGET := tnylsp
 
 all:
 	$(CC) $(SRC) $(CCFLAGS) -o $(TARGET)
