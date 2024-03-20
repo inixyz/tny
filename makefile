@@ -1,5 +1,5 @@
 CC := gcc
-CCFLAGS := -Wall -DNum=double
+CCFLAGS := -Wall -DNum=double -Os
 
 SRC := src/*.c
 TARGET := tnylsp

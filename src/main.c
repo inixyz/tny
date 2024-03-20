@@ -1,63 +1,69 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
-typedef struct Cons{
-    enum {ATOM_NUM, ATOM_SYMBOL} type;
+typedef struct {
+    enum {TYPE_LIST, TYPE_IDENT, TYPE_NUM, TYPE_STR} type;
     union {
-        Num num; char* symbol; struct {struct Cons *car, *cdr;};
+        struct List* list; char* ident; Num num; char* str;
     };
-} Cons;
+} Data;
 
-void print_cons(const Cons* const cons) {
-    if (cons->type == ATOM_NUM) printf("%g", cons->num);
-    else if (cons->type == ATOM_SYMBOL) printf("%s", cons->symbol);
+typedef struct List {
+    struct List* next; Data data;
+} List;
+
+List* list_push_front(List* const list, const Data data) {
+    List* head = calloc(1, sizeof(*head));
+    *head = (List){list, data};
+    return head;
+}
+
+void list_print(const List* const list) {
+    if (list->data.type == TYPE_IDENT) printf("%s", list->data.ident);
+    else if (list->data.type == TYPE_NUM) printf("%g", list->data.num);
+    else if (list->data.type == TYPE_STR) printf("\"%s\"", list->data.str);
     else {
-        if (cons->car->type != ATOM_NUM && cons->car->type != ATOM_SYMBOL)
-            printf("(");
-        print_cons(cons->car);
-        if (cons->car->type != ATOM_NUM && cons->car->type != ATOM_SYMBOL)
-            printf(")");
+        printf("["); list_print(list->data.list); printf("]");
+    }
 
-        if (cons->cdr->type == ATOM_NUM || cons->cdr->type == ATOM_SYMBOL)
-            printf(" . ");
-        else printf(" ");
-
-        if (cons->cdr->type != ATOM_NUM && cons->cdr->type != ATOM_SYMBOL) {
-            if (cons->cdr->car == NULL && cons->cdr->cdr == NULL) {
-                return;
-            } else print_cons(cons->cdr);
-        }
-        else print_cons(cons->cdr);
+    if (list->next) {
+        printf(", "); list_print(list->next);
     }
 }
 
-void print_list(const Cons* const cons) {
-    printf("(");
-    print_cons(cons);
-    printf(")\n");
-}
-
-Cons* make_atom_num(const Num num) {
-    Cons* cons = malloc(sizeof(Cons));
-    cons->type = ATOM_NUM;
-    cons->num = num;
-    return cons;
-}
-
-Cons* make_cons(Cons* const car, Cons* const cdr) {
-    Cons* cons = malloc(sizeof(Cons));
-    cons->type = 100;
-    cons->car = car;
-    cons->cdr = cdr;
-    return cons;
-}
-
-
-
 int main() {
-    Cons* test = make_cons(make_cons(make_atom_num(1), make_atom_num(2)), make_cons(make_atom_num(3), make_atom_num(4)));
-    print_list(test);
+    Data data = {TYPE_NUM, .num = 1};
+    List* head = list_push_front(NULL, data);
 
-    Cons* test2 = make_cons(make_atom_num(1), make_cons(make_atom_num(2),  make_cons(NULL, NULL)));
-    print_list(test2);
+    data = (Data){TYPE_IDENT, .ident = "boss"};
+    head = list_push_front(head, data);
+
+    data = (Data){TYPE_LIST, .list = list_push_front(NULL, (Data){TYPE_NUM, .num = 3})};
+    head = list_push_front(head, data);
+    head->data.list = list_push_front(head->data.list, (Data){TYPE_STR, .str = "salut"});
+
+    printf("["); list_print(head); printf("]\n");
+
+    // char str[] ="(eval    (+ 1 2))";
+    // //char test[1000];
+    // strcpy(test, str);
+
+    // // { + 1 { + 2 3 } }
+
+    // // (+ 1 (+ 2 3))
+
+
+
+
+
+    // char * pch;
+    // printf ("Splitting string \"%s\" into tokens:\n",str);
+    // char* curr;
+    // pch = strtok_r(str, " ()", &curr);
+    // while (pch != NULL)
+    // {
+    //     printf ("%s | '%c'\n",pch, test[curr - str - 1]);
+    //     pch = strtok_r(NULL, " ()", &curr);
+    // }
 }
