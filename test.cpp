@@ -3,6 +3,7 @@
 #include <vector>
 #include <string>
 #include <regex>
+#include <functional>
 
 std::vector<std::string> split_string(const std::string& str) {
     std::istringstream iss(str);
@@ -47,6 +48,9 @@ std::any parse(std::vector<std::string>& toks,
     }
 }
 
+std::unordered_map<std::string, std::any> context;
+
+
 void print_any(const std::any any) {
     if (any.type() == typeid(std::string))
         std::cout << "\"" << std::any_cast<std::string>(any) << "\"";
@@ -61,15 +65,19 @@ void print_any(const std::any any) {
     }
 }
 
+double plus(const std::vector<double> values) {
+    double result = values[0];
+    for (size_t i = 1; i < values.size(); i++) {
+        result += values[i];
+    }
+    return result;
+}
+
 int main() {
     std::string in = "(+ (+ 5 (quote 10)) 2)";
-    std::cout << in << std::endl;
-
     std::vector<std::string> toks = lex(in);
-    for (size_t i = 0; i < toks.size(); i++) {
-        std::cout << toks[i] << ", ";
-    }
-    std::cout << std::endl;
+
+
 
     print_any(parse(toks));
 }
