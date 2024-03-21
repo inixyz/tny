@@ -4,6 +4,8 @@
 #include <string>
 #include <regex>
 #include <functional>
+#include <list>
+#include <cctype>
 
 std::vector<std::string> split_string(const std::string& str) {
     std::istringstream iss(str);
@@ -43,17 +45,17 @@ std::any parse(std::vector<std::string>& toks,
     } else if (tok == ")") {
         return ast;
     } else {
-        ast.push_back(tok);
+        if (isdigit(tok[0])) ast.push_back(std::stod(tok));
+        else ast.push_back(tok);
         return parse(toks, ast);
     }
 }
 
-std::unordered_map<std::string, std::any> context;
-
-
 void print_any(const std::any any) {
     if (any.type() == typeid(std::string))
         std::cout << "\"" << std::any_cast<std::string>(any) << "\"";
+    else if (any.type() == typeid(double))
+        std::cout << std::any_cast<double>(any);
     else if (any.type() == typeid(std::vector<std::any>)) {
         std::vector<std::any> vec = std::any_cast<std::vector<std::any>>(any);
         std::cout << "[";
@@ -65,19 +67,46 @@ void print_any(const std::any any) {
     }
 }
 
-double plus(const std::vector<double> values) {
-    double result = values[0];
+std::unordered_map<std::string, std::any> context;
+
+std::any eval(const std::any any) {
+    if (any.type() == typeid(std::string)) return std::any_cast<std::string>(any);
+    else if (any.type() == typeid(double)) return std::any_cast<double>(any);
+    else if (any.type() == typeid(std::vector<std::any>)) {
+        std::vector<std::any> vec = std::any_cast<std::vector<std::any>>(any);
+
+        std::string oper = std::any_cast<std::string>(vec[0]);
+        vec.erase(vec.begin());
+
+        // wtf 3
+        return std::any_cast<std::function<double(const std::vector<std::any>)>>(context[oper])(vec);
+
+        // if ( std::any_cast<std::string>(vec[0]) == "+") {
+        //     double result = std::any_cast<double>(eval(vec[1]));
+        //     for (size_t i = 2; i < vec.size(); i++)
+        //         result += std::any_cast<double>(eval(vec[i]));
+        //     return result;
+        // }
+    }
+}
+
+
+double plus(const std::vector<std::any> values) {
+    double result = std::any_cast<double>(eval(values[0]));
     for (size_t i = 1; i < values.size(); i++) {
-        result += values[i];
+        result += std::any_cast<double>(eval(values[i]));
     }
     return result;
 }
 
 int main() {
-    std::string in = "(+ (+ 5 (quote 10)) 2)";
+
+    std::function<double(const std::vector<std::any>)> plus_func = plus;
+    context["+"] = plus_func;
+
+
+    std::string in = "(+ (+ 3 4) 2)";
     std::vector<std::string> toks = lex(in);
-
-
-
-    print_any(parse(toks));
+    print_any(eval(parse(toks)));
+    std::cout << std::endl;
 }
