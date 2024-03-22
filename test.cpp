@@ -7,106 +7,127 @@
 #include <list>
 #include <cctype>
 
-std::vector<std::string> split_string(const std::string& str) {
-    std::istringstream iss(str);
-    std::vector<std::string> tokens;
-    std::string token;
-    while (iss >> token) {
-        if (!token.empty()) {
-            tokens.push_back(token);
-        }
-    }
-    return tokens;
-}
+std::vector<std::any> lex(std::string& in) {
+    in = std::regex_replace(in, std::regex("[(]"), " ( ");
+    in = std::regex_replace(in, std::regex("[)]"), " ) ");
 
-std::vector<std::string> lex(const std::string& in) {
-    std::string in_modfied = std::regex_replace(in, std::regex("[(]"), " ( ");
-    in_modfied = std::regex_replace(in_modfied, std::regex("[)]"), " ) ");
-
-    return split_string(in_modfied);
-}
-
-std::any parse(std::vector<std::string>& toks,
-    std::vector<std::any>& ast = *(new std::vector<std::any>)) {
-
-    // wtf
-    if (toks.empty()) {
-        return ast.back();
+    std::istringstream in_stream(in);
+    std::string tok; std::vector<std::any> toks;
+    while (in_stream >> tok) {
+        if (tok.empty()) continue;
+        if (std::isdigit(tok[0])) toks.push_back(std::stod(tok));
+        else toks.push_back(tok);
     }
 
-    // extract one token
-    std::string tok = toks.front();
+    return toks;
+}
+
+std::any parse(std::vector<std::any>& toks,
+    std::vector<std::any> ast = std::vector<std::any>()) {
+
+    if (toks.empty()) return ast.back();
+    std::any tok = toks.front();
     toks.erase(toks.begin());
 
-    if (tok == "(") {
-        // wtf x2
-        ast.push_back(parse(toks, *(new std::vector<std::any>)));
+    if (tok.type() == typeid(std::string)) {
+        std::string tok_string = std::any_cast<std::string>(tok);
+        if (tok_string == "(") {
+            ast.push_back(parse(toks, std::vector<std::any>()));
+            return parse(toks, ast);
+        } else if (tok_string == ")") return ast;
+        else {
+            ast.push_back(tok);
+            return parse(toks, ast);
+        }
+    } else if (tok.type() == typeid(double)) {
+        ast.push_back(tok);
         return parse(toks, ast);
-    } else if (tok == ")") {
-        return ast;
     } else {
-        if (isdigit(tok[0])) ast.push_back(std::stod(tok));
-        else ast.push_back(tok);
-        return parse(toks, ast);
+        std::cerr << "Invalid tok encountered while parsing" << std::endl;
+        std::terminate();
     }
 }
 
-void print_any(const std::any any) {
-    if (any.type() == typeid(std::string))
-        std::cout << "\"" << std::any_cast<std::string>(any) << "\"";
-    else if (any.type() == typeid(double))
+void print_any(const std::any& any) {
+    if (any.type() == typeid(double))
         std::cout << std::any_cast<double>(any);
+    else if (any.type() == typeid(std::string))
+        std::cout << std::any_cast<std::string>(any);
     else if (any.type() == typeid(std::vector<std::any>)) {
-        std::vector<std::any> vec = std::any_cast<std::vector<std::any>>(any);
-        std::cout << "[";
+        const auto& vec = std::any_cast<std::vector<std::any>>(any);
+        std::cout << "(";
         for (size_t i = 0; i < vec.size(); i++) {
             print_any(vec[i]);
-            if (i != vec.size() - 1) std::cout << ", ";
+            if (i != vec.size() - 1) std::cout << " ";
         }
-        std::cout << "]";
+        std::cout << ")";
+
+    } else {
+        std::cerr << "Invalid value encountered while printing" << std::endl;
+        std::terminate();
     }
 }
 
-std::unordered_map<std::string, std::any> context;
+std::unordered_map<std::string, std::any> global_scope;
 
 std::any eval(const std::any any) {
-    if (any.type() == typeid(std::string)) return std::any_cast<std::string>(any);
-    else if (any.type() == typeid(double)) return std::any_cast<double>(any);
-    else if (any.type() == typeid(std::vector<std::any>)) {
-        std::vector<std::any> vec = std::any_cast<std::vector<std::any>>(any);
+    if (any.type() == typeid(double))
+        return std::any_cast<double>(any);
+    else if (any.type() == typeid(std::string)) {
+        std::string any_str = std::any_cast<std::string>(any);
+        if (any_str.front() == '"' && any_str.back() == '"') return any_str;
 
-        std::string oper = std::any_cast<std::string>(vec[0]);
+        if (global_scope.find(any_str) == global_scope.end()) {
+            std::cerr << "Invalid symbol: " + any_str << std::endl;
+            std::terminate();
+        }
+
+        return global_scope.at(any_str);
+    }
+    else if (any.type() == typeid(std::vector<std::any>)) {
+        auto vec = std::any_cast<std::vector<std::any>>(any);
+
+        if (vec.empty()) {
+            std::cerr << "Cannot eval empty list" << std::endl;
+            std::terminate();
+        }
+
+        auto func = std::any_cast<std::function<std::any(const std::vector<std::any>)>>(eval(vec[0]));
         vec.erase(vec.begin());
 
-        // wtf 3
-        return std::any_cast<std::function<double(const std::vector<std::any>)>>(context[oper])(vec);
-
-        // if ( std::any_cast<std::string>(vec[0]) == "+") {
-        //     double result = std::any_cast<double>(eval(vec[1]));
-        //     for (size_t i = 2; i < vec.size(); i++)
-        //         result += std::any_cast<double>(eval(vec[i]));
-        //     return result;
-        // }
+        return func(vec);
+    }
+    else {
+        std::cerr << "Invalid value encountered while evaluating" << std::endl;
+        std::terminate();
     }
 }
 
+std::any func_sum(const std::vector<std::any> params) {
+    if (params.size() < 2) {
+        std::cerr << "Not enougth parameters for sum" << std::endl;
+        std::terminate();
+    }
 
-double plus(const std::vector<std::any> values) {
-    double result = std::any_cast<double>(eval(values[0]));
-    for (size_t i = 1; i < values.size(); i++) {
-        result += std::any_cast<double>(eval(values[i]));
+    double result = std::any_cast<double>(eval(params[0]));
+    for (size_t i = 1; i < params.size(); i++) {
+        result += std::any_cast<double>(eval(params[i]));
     }
     return result;
 }
 
 int main() {
+    std::function<std::any(const std::vector<std::any>)> func_func_sum = func_sum;
+    global_scope["+"] = func_func_sum;
+    global_scope["x"] = double(5);
 
-    std::function<double(const std::vector<std::any>)> plus_func = plus;
-    context["+"] = plus_func;
 
-
-    std::string in = "(+ (+ 3 4) 2)";
-    std::vector<std::string> toks = lex(in);
-    print_any(eval(parse(toks)));
-    std::cout << std::endl;
+    std::string in;
+    std::vector<std::any> toks;
+    while (true) {
+        std::cout << ">>> ";
+        std::getline(std::cin, in);
+        toks = lex(in);
+        print_any(eval(parse(toks))); std::cout << std::endl;
+    }
 }
