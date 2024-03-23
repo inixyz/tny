@@ -6,6 +6,7 @@
 #include <functional>
 #include <list>
 #include <cctype>
+#include <forward_list>
 
 std::vector<std::any> lex(std::string& in) {
     in = std::regex_replace(in, std::regex("[(]"), " ( ");
@@ -120,6 +121,8 @@ int main() {
     std::function<std::any(const std::vector<std::any>)> func_func_sum = func_sum;
     global_scope["+"] = func_func_sum;
     global_scope["x"] = double(5);
+
+    std::cout << sizeof(std::forward_list<int>) << std::endl;
 
 
     std::string in;

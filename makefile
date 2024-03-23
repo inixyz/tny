@@ -1,11 +1,11 @@
-CC := gcc
-CCFLAGS := -Wall -DNum=double -Os
+CXX := g++
+CXXFLAGS := -Wall -Werror
 
-SRC := src/*.c
+SRC := src/*.cpp
 TARGET := tnylsp
 
 all:
-	$(CC) $(SRC) $(CCFLAGS) -o $(TARGET)
+	$(CXX) $(SRC) $(CXXFLAGS) -o $(TARGET)
 
 .PHONY: clean
 clean:
