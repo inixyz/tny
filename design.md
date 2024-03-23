@@ -1,6 +1,9 @@
 # principles
 - static scoping
-- std::vector of std::any
+- std::vector of Data
+
+- program_run iterates through the vecotor for data from parse and runs eval on each item
+    returns what the last item evaluates to
 
 
 # C
@@ -17,7 +20,6 @@ char* y = "Salut";
 # tny.lsp
 (let x 5)
 (let y "Salut")
-
 
 # C
 if (x > 5) x += 10;

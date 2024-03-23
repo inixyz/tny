@@ -105,9 +105,7 @@ Data eval(const Data& data, Env& env) {
             env.local_scope.top().find(ident) != env.local_scope.top().end()) {
 
             return env.local_scope.top().at(ident);
-        }
-
-        else if (env.global_scope.find(ident) != env.global_scope.end())
+        } else if (env.global_scope.find(ident) != env.global_scope.end())
             return env.global_scope.at(ident);
         else throw std::runtime_error("undefined symbol " + ident);
     } break;
@@ -118,6 +116,7 @@ Data eval(const Data& data, Env& env) {
         Data fn = eval(vec[0], env); vec.erase(vec.begin());
         if (fn.type == Data::BUILTIN)
             return std::get<Builtin>(fn.val)(vec, env);
+        // todo else if user function
         else throw std::runtime_error("unexpected data type in call");
     } break;
     default: throw std::runtime_error("unknown data type in eval");
@@ -148,8 +147,9 @@ Data sum(const Vec& args, Env& env) {
 int main() {
     Env env;
     env.global_scope["+"] = {Data::BUILTIN, builtin::sum};
+    env.global_scope["x"] = {Data::NUM, double(100)};
 
-    std::string in = "(+ 1 (+ 2 3))";
+    std::string in = "(+ 1 (+ x 3))";
     std::vector<std::string> toks = lex(in);
     print_data(eval(parse(toks)[0], env));
     std::cout << std::endl;
