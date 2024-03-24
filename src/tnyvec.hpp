@@ -315,11 +315,23 @@ Data lnot(const Vec& args, Env& env) {
 
 Data cond_if(const Vec& args, Env& env) {
     if (args.size() != 3)
-        throw std::runtime_error("invalid number of args for cond_if +");
+        throw std::runtime_error("invalid number of args for cond_if");
 
     Data condition = eval(args[0], env);
     if (condition) return eval(args[1], env);
     else return eval(args[2], env);
+}
+
+Data loop_while(const Vec& args, Env& env) {
+    if (args.size() < 2)
+        throw std::runtime_error("invalid number of args for loop_while");
+
+    Data condition = args[0];
+    Vec ast = args; ast.erase(ast.begin());
+
+    Data result;
+    while (eval(condition, env)) result = exec(ast, env);
+    return result;
 }
 
 Data assign(const Vec& args, Env& env) {
@@ -385,6 +397,7 @@ Env::Env() {
     global_scope["!"] = {Data::BUILTIN, builtin::lnot};
 
     global_scope["if"] = {Data::BUILTIN, builtin::cond_if};
+    global_scope["while"] = {Data::BUILTIN, builtin::loop_while};
 
     global_scope["="] = {Data::BUILTIN, builtin::assign};
     global_scope["fn"] = {Data::BUILTIN, builtin::fn};
