@@ -21,9 +21,12 @@ struct Env {
 
 using Vec = std::vector<Data>;
 using Builtin = std::function<Data(const Vec& args, Env& env)>;
+struct Fn {
+    std::vector<std::string> params; Vec ast;
+};
 struct Data {
-    enum {VEC, BUILTIN, SYMBOL, NUM, STR} type;
-    std::variant<Vec, Builtin, std::string, double> val;
+    enum {VEC, BUILTIN, FN, SYMBOL, NUM, STR} type;
+    std::variant<Vec, Builtin, Fn, std::string, double> val;
 
     bool operator==(const Data& rhs) const {
         if (type != rhs.type) return false;
@@ -32,11 +35,32 @@ struct Data {
         case Data::BUILTIN:
             return std::get<Builtin>(val).target_type().name() ==
                 std::get<Builtin>(rhs.val).target_type().name();
+
+        case Data::FN: {
+            const std::vector<std::string>& lhs_params =
+                std::get<Fn>(val).params;
+            const std::vector<std::string>& rhs_params =
+                std::get<Fn>(rhs.val).params;
+            const Vec& lhs_ast = std::get<Fn>(val).ast;
+            const Vec& rhs_ast = std::get<Fn>(rhs.val).ast;
+            if (lhs_params.size() != rhs_params.size() ||
+                lhs_ast.size() != rhs_ast.size()) return false;
+            else {
+                for (size_t i = 0; i < lhs_params.size(); i++)
+                    if (lhs_params[i] != rhs_params[i]) return false;
+                for (size_t i = 0; i < lhs_ast.size(); i++)
+                    if (!(lhs_ast[i] == rhs_ast[i])) return false;
+                return true;
+            }
+        }
+
         case Data::SYMBOL: case Data::STR:
             return std::get<std::string>(val) ==
                 std::get<std::string>(rhs.val);
+
         case Data::NUM:
             return std::get<double>(val) == std::get<double>(rhs.val);
+
         case Data::VEC: {
             const Vec& lhs_vec = std::get<Vec>(val);
             const Vec& rhs_vec = std::get<Vec>(rhs.val);
@@ -47,6 +71,7 @@ struct Data {
                 return true;
             }
         } break;
+
         default:
             throw std::runtime_error("unknown data type in Data.operator==");
         }
@@ -56,6 +81,7 @@ struct Data {
         switch (type) {
         case Data::VEC: return !std::get<Vec>(val).empty();
         case Data::BUILTIN: return (bool)std::get<Builtin>(val);
+        case Data::FN: return !std::get<Fn>(val).ast.empty();
         case Data::SYMBOL: case Data::STR:
             return !std::get<std::string>(val).empty();
         case Data::NUM: return std::get<double>(val);
@@ -114,6 +140,8 @@ Vec parse(std::vector<std::string>& toks, Vec ast = Vec()) {
     }
 }
 
+Data exec(const Vec& ast, Env& env);
+
 Data eval(const Data& data, Env& env) {
     switch (data.type) {
     case Data::BUILTIN: case Data::NUM: case Data::STR: return data; break;
@@ -135,8 +163,23 @@ Data eval(const Data& data, Env& env) {
         Data fn = eval(vec[0], env); vec.erase(vec.begin());
         if (fn.type == Data::BUILTIN)
             return std::get<Builtin>(fn.val)(vec, env);
-        // todo else if user function
-        else throw std::runtime_error("unexpected data type in call");
+        else if (fn.type == Data::FN) {
+            const std::vector<std::string>& params =
+                std::get<Fn>(fn.val).params;
+            const Vec& ast = std::get<Fn>(fn.val).ast;
+
+            if (params.size() != vec.size())
+                throw std::runtime_error("invalid number of params in fn call");
+
+            Scope scope;
+            for (size_t i = 0; i < params.size(); i++)
+                scope[params[i]] = eval(vec[i], env);
+
+            env.local_scope.push(scope);
+            const Data result = exec(ast, env);
+            env.local_scope.pop();
+            return result;
+        } else throw std::runtime_error("unexpected data type in call");
     } break;
     default: throw std::runtime_error("unknown data type in eval");
     }
@@ -154,9 +197,24 @@ void print(const Data& data, std::ostream& out = std::cout) {
     case Data::BUILTIN:
         out << "BUILTIN:" << std::get<Builtin>(data.val).target_type().name();
         break;
+
+    case Data::FN: {
+        const Fn& fn = std::get<Fn>(data.val);
+        const std::vector<std::string>& params = fn.params;
+        out << "FN(";
+        for (auto it = params.begin(); it != params.end(); it++) {
+            out << *it;
+            if (it != params.end() - 1) out << " ";
+        }
+        out << ")(";
+        for (const auto& expr : fn.ast) print(expr);
+        out << ")";
+    } break;
+
     case Data::SYMBOL: out << std::get<std::string>(data.val); break;
     case Data::NUM: out << std::get<double>(data.val); break;
     case Data::STR: out << '"' << std::get<std::string>(data.val) << '"'; break;
+
     case Data::VEC: {
         const auto& vec = std::get<Vec>(data.val);
         out << "(";
@@ -166,11 +224,30 @@ void print(const Data& data, std::ostream& out = std::cout) {
         }
         out << ")";
     } break;
+
     default: throw std::runtime_error("unknown data type in print");
     }
 }
 
 namespace builtin {
+
+Data fn(const Vec& args, Env& env) {
+    if (args.size() < 2) throw std::runtime_error("not enough args for fn");
+
+    Fn result;
+
+    Data params = args[0];
+    if (params.type != Data::VEC)
+        throw std::runtime_error("params for fn is not a vec");
+    for (const auto& data : std::get<Vec>(params.val))
+        if (data.type != Data::SYMBOL)
+            throw std::runtime_error("param is not symbol");
+        else result.params.push_back(std::get<std::string>(data.val));
+    for (auto it = args.begin() + 1; it != args.end(); it++)
+        result.ast.push_back(*it);
+
+    return {Data::FN, result};
+}
 
 #define ARITHMETIC_OPERATION(FN_NAME, OPERATION) \
 Data FN_NAME(const Vec& args, Env& env) { \
@@ -280,6 +357,8 @@ Env::Env() {
     global_scope["!"] = {Data::BUILTIN, builtin::lnot};
 
     global_scope["if"] = {Data::BUILTIN, builtin::cond_if};
+
+    global_scope["fn"] = {Data::BUILTIN, builtin::fn};
 }
 
 } // namespace tnyvec

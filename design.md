@@ -52,3 +52,5 @@ double factorial(double n) {
         1
     )
 )
+
+(= sum (fn (a b) (+ a b)))
