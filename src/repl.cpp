@@ -11,7 +11,7 @@ int main() {
     while (true) {
         std::cout << ">>> "; std::getline(std::cin, in);
         std::vector<std::string> toks = tnyvec::lex(in);
-        tnyvec::print(tnyvec::run(tnyvec::parse(toks), env));
+        tnyvec::print(tnyvec::exec(tnyvec::parse(toks), env));
         std::cout << std::endl;
     };
 }

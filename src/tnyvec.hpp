@@ -103,7 +103,7 @@ Data eval(const Data& data, Env& env) {
     }
 }
 
-Data run(const Vec& ast, Env& env) {
+Data exec(const Vec& ast, Env& env) {
     if (ast.empty()) throw std::runtime_error("can't run empty ast");
     Data result;
     for (const auto& expr : ast) result = eval(expr, env);
@@ -131,29 +131,93 @@ void print(const Data& data, std::ostream& out = std::cout) {
     }
 }
 
+bool is_true(const Data& data) {
+    switch (data.type) {
+    case Data::VEC: return !std::get<Vec>(data.val).empty();
+    case Data::BUILTIN: return (bool)std::get<Builtin>(data.val);
+    case Data::SYMBOL: case Data::STR:
+        return !std::get<std::string>(data.val).empty();
+    case Data::NUM: return std::get<double>(data.val);
+    default: throw std::runtime_error("unknown data type in is_true");
+    }
+}
+
 namespace builtin {
 
-Data sum(const Vec& args, Env& env) {
-    if (args.size() < 2) throw std::runtime_error("not enough args for +");
+#define ARITHMETIC_OPERATION(FN_NAME, OPERATION) \
+Data FN_NAME(const Vec& args, Env& env) { \
+    if (args.size() < 2) \
+        throw std::runtime_error("not enough args for " \
+            + std::string(#FN_NAME)); \
+    Data data = eval(args[0], env); \
+    if (data.type != Data::NUM) \
+        throw std::runtime_error("invalid argument for " \
+            + std::string(#FN_NAME)); \
+    double result = std::get<double>(data.val); \
+    for (auto it = args.begin() + 1; it != args.end(); it++) { \
+        if ((data = eval(*it, env)).type != Data::NUM) \
+            throw std::runtime_error("invalid argument for " \
+                + std::string(#FN_NAME)); \
+        result OPERATION std::get<double>(data.val); \
+    } \
+    return {Data::NUM, result}; \
+}
 
-    Data data = eval(args[0], env);
-    if (data.type != Data::NUM)
-        throw std::runtime_error("invalid argument for +");
-    double result = std::get<double>(data.val);
+ARITHMETIC_OPERATION(sum, +=)
+ARITHMETIC_OPERATION(sub, -=)
+ARITHMETIC_OPERATION(mul, *=)
+ARITHMETIC_OPERATION(div, /=)
 
-    for (auto it = args.begin() + 1; it != args.end(); it++) {
-        if ((data = eval(*it, env)).type != Data::NUM)
-            throw std::runtime_error("invalid argument for +");
-        result += std::get<double>(data.val);
-    }
+#define LOGICAL_OPERATION(FN_NAME, OPERATION) \
+Data FN_NAME(const Vec& args, Env& env) { \
+    if (args.size() != 2) \
+        throw std::runtime_error("invalid number of args for " \
+            + std::string(#FN_NAME)); \
+    const Data left = eval(args[0], env); \
+    if (left.type != Data::NUM) \
+        throw std::runtime_error("invalid left argument for " \
+            + std::string(#FN_NAME)); \
+    const double left_val = std::get<double>(left.val); \
+    const Data right = eval(args[1], env); \
+    if (right.type != Data::NUM) \
+        throw std::runtime_error("invalid right argument for " \
+            + std::string(#FN_NAME)); \
+    const double right_val = std::get<double>(right.val); \
+    return {Data::NUM, double(left_val OPERATION right_val)}; \
+}
 
-    return {Data::NUM, result};
+LOGICAL_OPERATION(lt, <)
+LOGICAL_OPERATION(gt, >)
+LOGICAL_OPERATION(lteq, <=)
+LOGICAL_OPERATION(gteq, >=)
+LOGICAL_OPERATION(land, &&)
+LOGICAL_OPERATION(lor, ||)
+
+Data cond_if(const Vec& args, Env& env) {
+    if (args.size() != 3)
+        throw std::runtime_error("invalid number of args for cond_if +");
+
+    Data condition = eval(args[0], env);
+    if (is_true(condition)) return eval(args[1], env);
+    else return eval(args[2], env);
 }
 
 } // namespace builtin
 
 Env::Env() {
     global_scope["+"] = {Data::BUILTIN, builtin::sum};
+    global_scope["-"] = {Data::BUILTIN, builtin::sub};
+    global_scope["*"] = {Data::BUILTIN, builtin::mul};
+    global_scope["/"] = {Data::BUILTIN, builtin::div};
+
+    global_scope["<"] = {Data::BUILTIN, builtin::lt};
+    global_scope[">"] = {Data::BUILTIN, builtin::gt};
+    global_scope["<="] = {Data::BUILTIN, builtin::lteq};
+    global_scope[">="] = {Data::BUILTIN, builtin::gteq};
+    global_scope["&&"] = {Data::BUILTIN, builtin::land};
+    global_scope["||"] = {Data::BUILTIN, builtin::lor};
+
+    global_scope["if"] = {Data::BUILTIN, builtin::cond_if};
 }
 
 } // namespace tnyvec
