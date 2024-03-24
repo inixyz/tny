@@ -1,5 +1,5 @@
 CXX := g++
-CXXFLAGS := -Wall -Werror
+CXXFLAGS := -std=c++23 -Wall -Werror
 
 SRC := src/*.cpp
 TARGET := tnyvec

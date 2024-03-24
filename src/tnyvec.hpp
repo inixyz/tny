@@ -94,7 +94,7 @@ struct Data {
 std::vector<std::string> lex(const std::string& in) {
     std::string in_modified = in;
 
-    auto replace = [](std::string& in, const std::string& pattern,
+    static auto replace = [](std::string& in, const std::string& pattern,
         const std::string& result) {
 
         size_t pos = 0;
@@ -236,24 +236,6 @@ void print(const Data& data, std::ostream& out = std::cout) {
 
 namespace builtin {
 
-Data fn(const Vec& args, Env& env) {
-    if (args.size() < 2) throw std::runtime_error("not enough args for fn");
-
-    Fn result;
-
-    Data params = args[0];
-    if (params.type != Data::VEC)
-        throw std::runtime_error("params for fn is not a vec");
-    for (const auto& data : std::get<Vec>(params.val))
-        if (data.type != Data::SYMBOL)
-            throw std::runtime_error("param is not symbol");
-        else result.params.push_back(std::get<std::string>(data.val));
-    for (auto it = args.begin() + 1; it != args.end(); it++)
-        result.ast.push_back(*it);
-
-    return {Data::FN, result};
-}
-
 #define ARITHMETIC_OPERATION(FN_NAME, OPERATION) \
 Data FN_NAME(const Vec& args, Env& env) { \
     if (args.size() < 2) \
@@ -338,6 +320,47 @@ Data cond_if(const Vec& args, Env& env) {
     Data condition = eval(args[0], env);
     if (condition) return eval(args[1], env);
     else return eval(args[2], env);
+}
+
+Data assign(const Vec& args, Env& env) {
+    if (args.size() < 2 && args.size() % 2 == 0)
+        throw std::runtime_error("invalid number of args for assign");
+
+    static auto add_to_scope = [](const std::string& ident, const Data& data,
+        Env& env) -> Data {
+
+        if (!env.local_scope.empty()) env.local_scope.top()[ident] = data;
+        else env.global_scope[ident] = data;
+        return data;
+    };
+
+    Data result;
+    for (auto it = args.begin(); it != args.end(); it += 2) {
+        if (it->type != Data::SYMBOL)
+            throw std::runtime_error("lhs in assign is not symbol");
+        result = add_to_scope(
+            std::get<std::string>(it->val), eval(*(it + 1), env), env
+        );
+    }
+    return result;
+}
+
+Data fn(const Vec& args, Env& env) {
+    if (args.size() < 2) throw std::runtime_error("not enough args for fn");
+
+    Fn result;
+
+    Data params = args[0];
+    if (params.type != Data::VEC)
+        throw std::runtime_error("params for fn is not a vec");
+    for (const auto& data : std::get<Vec>(params.val))
+        if (data.type != Data::SYMBOL)
+            throw std::runtime_error("param is not symbol");
+        else result.params.push_back(std::get<std::string>(data.val));
+    for (auto it = args.begin() + 1; it != args.end(); it++)
+        result.ast.push_back(*it);
+
+    return {Data::FN, result};
 }
 
 } // namespace builtin
