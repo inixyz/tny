@@ -112,6 +112,11 @@ std::vector<std::string> lex(const std::string& in) {
 
     while (in_stream >> tok) {
         if (tok.empty()) continue;
+        if (tok.front() == '"' && tok.back() != '"') {
+            std::string str;
+            std::getline(in_stream, str, '"');
+            tok += str + '"';
+        }
         toks.push_back(tok);
     }
     return toks;
