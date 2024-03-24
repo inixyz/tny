@@ -1,4 +1,4 @@
-CXX := g++-12
+CXX := g++
 CXXFLAGS := -std=c++23 -Wall -Werror
 
 SRC := src/*.cpp
