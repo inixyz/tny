@@ -112,7 +112,7 @@ std::vector<std::string> lex(const std::string& in) {
 
     while (in_stream >> tok) {
         if (tok.empty()) continue;
-        if (tok.front() == '"' && tok.back() != '"') {
+        if (tok.front() == '"' && (tok.size() == 1 || tok.back() != '"')) {
             std::string str;
             std::getline(in_stream, str, '"');
             tok += str + '"';
@@ -206,14 +206,14 @@ void print(const Data& data, std::ostream& out = std::cout) {
     case Data::FN: {
         const Fn& fn = std::get<Fn>(data.val);
         const std::vector<std::string>& params = fn.params;
-        out << "FN(";
+        out << "FN:(";
         for (auto it = params.begin(); it != params.end(); it++) {
             out << *it;
             if (it != params.end() - 1) out << " ";
         }
-        out << ")(";
+        out << "){";
         for (const auto& expr : fn.ast) print(expr);
-        out << ")";
+        out << "}";
     } break;
 
     case Data::SYMBOL: out << std::get<std::string>(data.val); break;
@@ -386,6 +386,7 @@ Env::Env() {
 
     global_scope["if"] = {Data::BUILTIN, builtin::cond_if};
 
+    global_scope["="] = {Data::BUILTIN, builtin::assign};
     global_scope["fn"] = {Data::BUILTIN, builtin::fn};
 }
 
