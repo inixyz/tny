@@ -1,44 +1,48 @@
-#include <variant>
+#pragma once
+
+#include <unordered_map>
+#include <string>
+#include <stack>
 #include <vector>
 #include <functional>
-#include <string>
+#include <variant>
 #include <sstream>
-#include <unordered_map>
-#include <stack>
-#include <exception>
-#include <iostream>
+#include <stdexcept>
+
+namespace tnyvec {
 
 struct Data;
 
-using Vec = std::vector<Data>;
-
+using Scope = std::unordered_map<std::string, Data>;
 struct Env {
-    std::unordered_map<std::string, Data> global_scope;
-    std::stack<std::unordered_map<std::string, Data>> local_scope;
+    Scope global_scope; std::stack<Scope> local_scope;
+    Env();
 };
 
+using Vec = std::vector<Data>;
 using Builtin = std::function<Data(const Vec& args, Env& env)>;
-
 struct Data {
     enum {VEC, BUILTIN, SYMBOL, NUM, STR} type;
     std::variant<Vec, Builtin, std::string, double> val;
 };
 
-void str_replace(std::string& in, const std::string& pattern,
-    const std::string& result) {
+std::vector<std::string> lex(const std::string& in) {
+    std::string in_modified = in;
 
-    size_t pos = 0;
-    while ((pos = in.find(pattern, pos)) != std::string::npos) {
-        in.replace(pos, pattern.size(), result);
-        pos += result.size();
-    }
-}
+    auto replace = [](std::string& in, const std::string& pattern,
+        const std::string& result) {
 
-std::vector<std::string> lex(std::string& in) {
-    str_replace(in, "(", " ( ");
-    str_replace(in, ")", " ) ");
+        size_t pos = 0;
+        while ((pos = in.find(pattern, pos)) != std::string::npos) {
+            in.replace(pos, pattern.size(), result);
+            pos += result.size();
+        }
+    };
 
-    std::istringstream in_stream(in);
+    replace(in_modified, "(", " ( ");
+    replace(in_modified, ")", " ) ");
+
+    std::istringstream in_stream(in_modified);
     std::string tok; std::vector<std::string> toks;
 
     while (in_stream >> tok) {
@@ -71,30 +75,6 @@ Vec parse(std::vector<std::string>& toks, Vec ast = Vec()) {
     }
 }
 
-void print_data(const Data& data) {
-    switch (data.type) {
-    case Data::BUILTIN:
-        std::cout << "BUILTIN:"
-            << std::get<Builtin>(data.val).target_type().name();
-        break;
-    case Data::SYMBOL: std::cout << std::get<std::string>(data.val); break;
-    case Data::NUM: std::cout << std::get<double>(data.val); break;
-    case Data::STR:
-        std::cout << '"' << std::get<std::string>(data.val) << '"';
-        break;
-    case Data::VEC: {
-        const auto& vec = std::get<Vec>(data.val);
-        std::cout << "(";
-        for (auto it = vec.begin(); it != vec.end(); it++) {
-            print_data(*it);
-            if (it != vec.end() - 1) std::cout << " ";
-        }
-        std::cout << ")";
-    } break;
-    default: throw std::runtime_error("unknown data type in print");
-    }
-}
-
 Data eval(const Data& data, Env& env) {
     switch (data.type) {
     case Data::BUILTIN: case Data::NUM: case Data::STR: return data; break;
@@ -123,6 +103,34 @@ Data eval(const Data& data, Env& env) {
     }
 }
 
+Data run(const Vec& ast, Env& env) {
+    if (ast.empty()) throw std::runtime_error("can't run empty ast");
+    Data result;
+    for (const auto& expr : ast) result = eval(expr, env);
+    return result;
+}
+
+void print(const Data& data, std::ostream& out = std::cout) {
+    switch (data.type) {
+    case Data::BUILTIN:
+        out << "BUILTIN:" << std::get<Builtin>(data.val).target_type().name();
+        break;
+    case Data::SYMBOL: out << std::get<std::string>(data.val); break;
+    case Data::NUM: out << std::get<double>(data.val); break;
+    case Data::STR: out << '"' << std::get<std::string>(data.val) << '"'; break;
+    case Data::VEC: {
+        const auto& vec = std::get<Vec>(data.val);
+        out << "(";
+        for (auto it = vec.begin(); it != vec.end(); it++) {
+            print(*it);
+            if (it != vec.end() - 1) out << " ";
+        }
+        out << ")";
+    } break;
+    default: throw std::runtime_error("unknown data type in print");
+    }
+}
+
 namespace builtin {
 
 Data sum(const Vec& args, Env& env) {
@@ -144,13 +152,8 @@ Data sum(const Vec& args, Env& env) {
 
 } // namespace builtin
 
-int main() {
-    Env env;
-    env.global_scope["+"] = {Data::BUILTIN, builtin::sum};
-    env.global_scope["x"] = {Data::NUM, double(100)};
-
-    std::string in = "(+ 1 (+ x 3))";
-    std::vector<std::string> toks = lex(in);
-    print_data(eval(parse(toks)[0], env));
-    std::cout << std::endl;
+Env::Env() {
+    global_scope["+"] = {Data::BUILTIN, builtin::sum};
 }
+
+} // namespace tnyvec

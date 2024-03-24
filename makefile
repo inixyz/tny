@@ -2,7 +2,7 @@ CXX := g++
 CXXFLAGS := -Wall -Werror
 
 SRC := src/*.cpp
-TARGET := tnylsp
+TARGET := tnyvec
 
 all:
 	$(CXX) $(SRC) $(CXXFLAGS) -o $(TARGET)

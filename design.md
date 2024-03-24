@@ -6,6 +6,8 @@
     returns what the last item evaluates to
 
 
+headear only with define implementation
+
 # C
 printf("Hello, World!\n");
 
