@@ -24,6 +24,45 @@ using Builtin = std::function<Data(const Vec& args, Env& env)>;
 struct Data {
     enum {VEC, BUILTIN, SYMBOL, NUM, STR} type;
     std::variant<Vec, Builtin, std::string, double> val;
+
+    bool operator==(const Data& rhs) const {
+        if (type != rhs.type) return false;
+
+        switch(type) {
+        case Data::BUILTIN:
+            return std::get<Builtin>(val).target_type().name() ==
+                std::get<Builtin>(rhs.val).target_type().name();
+        case Data::SYMBOL: case Data::STR:
+            return std::get<std::string>(val) ==
+                std::get<std::string>(rhs.val);
+        case Data::NUM:
+            return std::get<double>(val) == std::get<double>(rhs.val);
+        case Data::VEC: {
+            const Vec& lhs_vec = std::get<Vec>(val);
+            const Vec& rhs_vec = std::get<Vec>(rhs.val);
+            if (lhs_vec.size() != rhs_vec.size()) return false;
+            else {
+                for (size_t i = 0; i < lhs_vec.size(); i++)
+                    if (!(lhs_vec[i] == rhs_vec[i])) return false;
+                return true;
+            }
+        } break;
+        default:
+            throw std::runtime_error("unknown data type in Data.operator==");
+        }
+    }
+
+    operator bool() const {
+        switch (type) {
+        case Data::VEC: return !std::get<Vec>(val).empty();
+        case Data::BUILTIN: return (bool)std::get<Builtin>(val);
+        case Data::SYMBOL: case Data::STR:
+            return !std::get<std::string>(val).empty();
+        case Data::NUM: return std::get<double>(val);
+        default:
+            throw std::runtime_error("unknown data type in Data.operatorbool");
+    }
+}
 };
 
 std::vector<std::string> lex(const std::string& in) {
@@ -104,7 +143,7 @@ Data eval(const Data& data, Env& env) {
 }
 
 Data exec(const Vec& ast, Env& env) {
-    if (ast.empty()) throw std::runtime_error("can't run empty ast");
+    if (ast.empty()) throw std::runtime_error("can't exec empty ast");
     Data result;
     for (const auto& expr : ast) result = eval(expr, env);
     return result;
@@ -128,17 +167,6 @@ void print(const Data& data, std::ostream& out = std::cout) {
         out << ")";
     } break;
     default: throw std::runtime_error("unknown data type in print");
-    }
-}
-
-bool is_true(const Data& data) {
-    switch (data.type) {
-    case Data::VEC: return !std::get<Vec>(data.val).empty();
-    case Data::BUILTIN: return (bool)std::get<Builtin>(data.val);
-    case Data::SYMBOL: case Data::STR:
-        return !std::get<std::string>(data.val).empty();
-    case Data::NUM: return std::get<double>(data.val);
-    default: throw std::runtime_error("unknown data type in is_true");
     }
 }
 
@@ -168,54 +196,88 @@ ARITHMETIC_OPERATION(sub, -=)
 ARITHMETIC_OPERATION(mul, *=)
 ARITHMETIC_OPERATION(div, /=)
 
+#define RELATIONAL_OPERATION(FN_NAME, OPERATION) \
+Data FN_NAME(const Vec& args, Env& env) { \
+    if (args.size() != 2) \
+        throw std::runtime_error("invalid number of args for " \
+            + std::string(#FN_NAME)); \
+    const Data lhs = eval(args[0], env); \
+    if (lhs.type != Data::NUM) \
+        throw std::runtime_error("invalid lhs argument for " \
+            + std::string(#FN_NAME)); \
+    const double lhs_val = std::get<double>(lhs.val); \
+    const Data rhs = eval(args[1], env); \
+    if (rhs.type != Data::NUM) \
+        throw std::runtime_error("invalid rhs argument for " \
+            + std::string(#FN_NAME)); \
+    const double rhs_val = std::get<double>(rhs.val); \
+    return {Data::NUM, double(lhs_val OPERATION rhs_val)}; \
+}
+
+RELATIONAL_OPERATION(lt, <)
+RELATIONAL_OPERATION(gt, >)
+RELATIONAL_OPERATION(lteq, <=)
+RELATIONAL_OPERATION(gteq, >=)
+
+Data eq(const Vec& args, Env& env) {
+    if (args.size() != 2)
+        throw std::runtime_error("invalid number of args for eq");
+    const Data lhs = eval(args[0], env);
+    const Data rhs = eval(args[1], env);
+    return {Data::NUM, double(lhs == rhs)};
+}
+
 #define LOGICAL_OPERATION(FN_NAME, OPERATION) \
 Data FN_NAME(const Vec& args, Env& env) { \
     if (args.size() != 2) \
         throw std::runtime_error("invalid number of args for " \
             + std::string(#FN_NAME)); \
-    const Data left = eval(args[0], env); \
-    if (left.type != Data::NUM) \
-        throw std::runtime_error("invalid left argument for " \
-            + std::string(#FN_NAME)); \
-    const double left_val = std::get<double>(left.val); \
-    const Data right = eval(args[1], env); \
-    if (right.type != Data::NUM) \
-        throw std::runtime_error("invalid right argument for " \
-            + std::string(#FN_NAME)); \
-    const double right_val = std::get<double>(right.val); \
-    return {Data::NUM, double(left_val OPERATION right_val)}; \
+    const Data lhs = eval(args[0], env); \
+    const Data rhs = eval(args[1], env); \
+    return {Data::NUM, double(bool(lhs) OPERATION bool(rhs))}; \
 }
 
-LOGICAL_OPERATION(lt, <)
-LOGICAL_OPERATION(gt, >)
-LOGICAL_OPERATION(lteq, <=)
-LOGICAL_OPERATION(gteq, >=)
 LOGICAL_OPERATION(land, &&)
 LOGICAL_OPERATION(lor, ||)
+
+Data lnot(const Vec& args, Env& env) {
+    if (args.size() != 1)
+        throw std::runtime_error("invalid number of args for lnot");
+    const Data rhs = eval(args[0], env);
+    if (rhs.type != Data::NUM)
+        std::runtime_error("invalid argument for lnot");
+    return {Data::NUM, double(!bool(rhs))};
+}
 
 Data cond_if(const Vec& args, Env& env) {
     if (args.size() != 3)
         throw std::runtime_error("invalid number of args for cond_if +");
 
     Data condition = eval(args[0], env);
-    if (is_true(condition)) return eval(args[1], env);
+    if (condition) return eval(args[1], env);
     else return eval(args[2], env);
 }
 
 } // namespace builtin
 
 Env::Env() {
+    // arithmetic
     global_scope["+"] = {Data::BUILTIN, builtin::sum};
     global_scope["-"] = {Data::BUILTIN, builtin::sub};
     global_scope["*"] = {Data::BUILTIN, builtin::mul};
     global_scope["/"] = {Data::BUILTIN, builtin::div};
 
+    // relational
     global_scope["<"] = {Data::BUILTIN, builtin::lt};
     global_scope[">"] = {Data::BUILTIN, builtin::gt};
     global_scope["<="] = {Data::BUILTIN, builtin::lteq};
     global_scope[">="] = {Data::BUILTIN, builtin::gteq};
+    global_scope["=="] = {Data::BUILTIN, builtin::eq};
+
+    // logical
     global_scope["&&"] = {Data::BUILTIN, builtin::land};
     global_scope["||"] = {Data::BUILTIN, builtin::lor};
+    global_scope["!"] = {Data::BUILTIN, builtin::lnot};
 
     global_scope["if"] = {Data::BUILTIN, builtin::cond_if};
 }
