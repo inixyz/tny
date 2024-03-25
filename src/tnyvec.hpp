@@ -322,6 +322,18 @@ Data cond_if(const Vec& args, Env& env) {
     else return eval(args[2], env);
 }
 
+Data when(const Vec& args, Env& env) {
+    if (args.size() < 2)
+        throw std::runtime_error("invalid number of args for when");
+
+    Data condition = eval(args[0], env);
+    Vec ast = args; ast.erase(ast.begin());
+
+    Data result;
+    if (condition) result = exec(ast, env);
+    return result;
+}
+
 Data loop_while(const Vec& args, Env& env) {
     if (args.size() < 2)
         throw std::runtime_error("invalid number of args for loop_while");
@@ -413,6 +425,7 @@ Env::Env() {
     global_scope["!"] = {Data::BUILTIN, builtin::lnot};
 
     global_scope["if"] = {Data::BUILTIN, builtin::cond_if};
+    global_scope["when"] = {Data::BUILTIN, builtin::when};
     global_scope["while"] = {Data::BUILTIN, builtin::loop_while};
     global_scope["for"] = {Data::BUILTIN, builtin::loop_for};
 
