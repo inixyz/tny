@@ -334,6 +334,22 @@ Data loop_while(const Vec& args, Env& env) {
     return result;
 }
 
+Data loop_for(const Vec& args, Env& env) {
+    if (args.size() < 4)
+        throw std::runtime_error("invalid number of args for loop_for");
+
+    eval(args[0], env); // initial
+    Data condition = args[1], increment = args[2];
+    Vec ast = args; ast.erase(ast.begin(), ast.begin() + 3);
+
+    Data result;
+    while (eval(condition, env)) {
+        result = exec(ast, env);
+        eval(increment, env);
+    }
+    return result;
+}
+
 Data assign(const Vec& args, Env& env) {
     if (args.size() < 2 && args.size() % 2 == 0)
         throw std::runtime_error("invalid number of args for assign");
@@ -398,6 +414,7 @@ Env::Env() {
 
     global_scope["if"] = {Data::BUILTIN, builtin::cond_if};
     global_scope["while"] = {Data::BUILTIN, builtin::loop_while};
+    global_scope["for"] = {Data::BUILTIN, builtin::loop_for};
 
     global_scope["="] = {Data::BUILTIN, builtin::assign};
     global_scope["fn"] = {Data::BUILTIN, builtin::fn};
